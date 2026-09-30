@@ -20,15 +20,15 @@ public:
         }
     }
 
-    void onReceive(NetworkTransport& transport, const std::vector<uint8_t> data) override {
+    void onReceive(NetworkTransport& transport, const std::vector<uint8_t>& data) override {
         std::string msg(data.begin(), data.end());
         std::cout << "[" << name_ << "] Получено и дешифровано: " << msg << "\n";
         if (name_ == "Server") {
-            transport.sendData(data); // Реализация эхо-сервера
+            transport.sendData(data); // Передача ссылки без лишней аллокации памяти
         }
     }
 
-    void onError(NetworkTransport& transport, const std::string error) override {
+    void onError(NetworkTransport& transport, const std::string& error) override {
         (void)transport;
         std::cerr << "[" << name_ << "] Ошибка сети: " << error << "\n";
     }
@@ -45,11 +45,11 @@ int main() {
         EchoCallback client_cb("Client");
 
         // 1. Создаем сервер и внедряем в него драйвер Beast
-        NetworkServer server(std::make_unique<BoostServerDriver>());
-        server.init("127.0.0.1", 8080, "/Users/alexander/Documents/server.crt", "/Users/alexander/Documents/server.key", &server_cb);
+        NetworkServer server(std::unique_ptr<BoostServerDriver>(new BoostServerDriver()));
+        server.init("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key", &server_cb);
 
         // 2. Создаем клиента и внедряем в него драйвер Beast
-        NetworkClient client(std::make_unique<BoostClientDriver>());
+        NetworkClient client(std::unique_ptr<BoostClientDriver>(new BoostClientDriver()));
         client.init(&client_cb);
 
         // 3. Запуск сетевых движков на пулах потоков внутри драйверов
