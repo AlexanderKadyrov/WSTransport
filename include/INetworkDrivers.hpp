@@ -5,21 +5,23 @@
 #include <string>
 #include <vector>
 
-class IServerDriver {
+class INetworkDriver {
 public:
-    virtual ~IServerDriver() {};
+    virtual ~INetworkDriver() {}
     virtual void configure(NetworkTransportCallback* callback) = 0;
     virtual void start() = 0;
     virtual void stop() = 0;
 };
 
-class IClientDriver {
+class IServerDriver : public INetworkDriver {
 public:
-    virtual ~IClientDriver() {};
-    virtual void configure(NetworkTransportCallback* callback) = 0;
+    virtual ~IServerDriver() {}
+};
+
+class IClientDriver : public INetworkDriver {
+public:
+    virtual ~IClientDriver() {}
     virtual void connect() = 0;
-    virtual void start() = 0;
-    virtual void stop() = 0;
     virtual void send(const std::vector<NetworkByte>& data) = 0;
 };
 
