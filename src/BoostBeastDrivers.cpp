@@ -111,7 +111,7 @@ private:
         
         if (ec) {
             handle_error("Read", ec);
-            return
+            return;
         }
         
         std::vector<uint8_t> data(read_buffer_.size());
