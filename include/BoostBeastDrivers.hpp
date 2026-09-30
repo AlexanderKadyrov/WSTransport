@@ -5,7 +5,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 class BoostServerDriver : public IServerDriver {
     class Impl;
@@ -32,7 +31,7 @@ public:
     void connect(const std::string& host, const std::string& port) override;
     void run() override;
     void stop() override;
-    void send(const std::vector<uint8_t>& data) override;
+    void send(const std::vector<NetworkByte>& data) override;
 };
 
 #endif // BOOST_BEAST_DRIVERS_HPP

@@ -55,7 +55,7 @@ public:
     }
 
     void sendData(const std::vector<NetworkByte>& data) override {
-        auto shared_data = std::make_shared<std::vector<uint8_t>>(data);
+        auto shared_data = std::make_shared<std::vector<uint8_t>>(data.begin(), data.end());
         auto self = shared_from_this();
         boost::asio::post(strand_, [self, shared_data]() {
             bool write_in_progress = !self->write_queue_.empty();
@@ -303,7 +303,7 @@ void BoostClientDriver::stop() {
     impl_->session.reset();
 }
 
-void BoostClientDriver::send(const std::vector<uint8_t>& data) {
+void BoostClientDriver::send(const std::vector<NetworkByte>& data) {
     if (impl_->session) {
         impl_->session->sendData(data);
     }
