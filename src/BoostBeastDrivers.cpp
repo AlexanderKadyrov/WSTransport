@@ -30,16 +30,28 @@ public:
     callback_(callback)
     {}
 
-    void start(bool is_server) {
+    void start_server() {
         ws_.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::server));
         auto self = shared_from_this();
-        if (is_server) {
-            ws_.next_layer().async_handshake(boost::asio::ssl::stream_base::server,
-                boost::asio::bind_executor(strand_, std::bind(&WebSocketSession::on_ssl_handshake, self, std::placeholders::_1, true)));
-        } else {
-            ws_.next_layer().async_handshake(boost::asio::ssl::stream_base::client,
-                boost::asio::bind_executor(strand_, std::bind(&WebSocketSession::on_ssl_handshake, self, std::placeholders::_1, false)));
+        ws_.next_layer().async_handshake(boost::asio::ssl::stream_base::server,
+                                         boost::asio::bind_executor(strand_, std::bind(&WebSocketSession::on_ssl_handshake_server, self, std::placeholders::_1)));
+    }
+    
+    void start_client(const std::string& host) {
+        ws_.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::client));
+        auto self = shared_from_this();
+        
+        // Настройка SNI для TLS (без этого современные сервера сбросят соединение)
+        if (!SSL_set_tlsext_host_name(ws_.next_layer().native_handle(), host.c_str())) {
+            boost::beast::error_code ec{static_cast<int>(::ERR_get_error()), boost::asio::error::get_ssl_category()};
+            return handle_error("SSL SNI Setup", ec);
         }
+        
+        ws_.next_layer().async_handshake(boost::asio::ssl::stream_base::client,
+                                         boost::asio::bind_executor(strand_, [self, host](boost::beast::error_code ec) {
+            if (ec) return self->handle_error("SSL Handshake", ec);
+            self->do_ws_handshake(host);
+        }));
     }
 
     void sendData(const std::vector<uint8_t>& data) override {
@@ -56,26 +68,30 @@ public:
     boost::asio::io_context::strand& strand() { return strand_; }
 
 private:
-    void on_ssl_handshake(boost::beast::error_code ec, bool is_server) {
+    void on_ssl_handshake_server(boost::beast::error_code ec) {
         if (ec) return handle_error("SSL Handshake", ec);
         auto self = shared_from_this();
-        if (is_server) {
-            ws_.async_accept(boost::asio::bind_executor(strand_, std::bind(&WebSocketSession::on_accept, self, std::placeholders::_1)));
-        } else {
-            if (callback_) callback_->onConnect(*this);
-            do_read();
-        }
+        ws_.async_accept(boost::asio::bind_executor(strand_, std::bind(&WebSocketSession::on_accept_server, self, std::placeholders::_1)));
     }
-
-    void on_accept(boost::beast::error_code ec) {
+    
+    void on_accept_server(boost::beast::error_code ec) {
         if (ec) return handle_error("Accept", ec);
         if (callback_) callback_->onConnect(*this);
         do_read();
     }
-
+    
+    void do_ws_handshake(const std::string& host) {
+        auto self = shared_from_this();
+        ws_.async_handshake(host, "/", boost::asio::bind_executor(strand_, [self](boost::beast::error_code ec) {
+            if (ec) return self->handle_error("WS Handshake", ec);
+            if (self->callback_) self->callback_->onConnect(*self);
+            self->do_read();
+        }));
+    }
+    
     void do_read() {
         ws_.async_read(read_buffer_, boost::asio::bind_executor(strand_,
-            std::bind(&WebSocketSession::on_read, shared_from_this(), std::placeholders::_1, std::placeholders::_2)));
+                                                                std::bind(&WebSocketSession::on_read, shared_from_this(), std::placeholders::_1, std::placeholders::_2)));
     }
 
     void on_read(boost::beast::error_code ec, std::size_t bytes_transferred) {
@@ -136,7 +152,7 @@ public:
         acceptor->async_accept([this](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
             if (!ec) {
                 auto session = std::make_shared<WebSocketSession>(std::move(socket), ssl_ctx, callback);
-                session->start(true);
+                session->start_server();
             }
             if (acceptor && acceptor->is_open()) {
                 do_accept();
@@ -221,27 +237,22 @@ void BoostClientDriver::configure(NetworkTransportCallback* callback) {
 void BoostClientDriver::connect(const std::string& host, const std::string& port) {
     impl_->resolver.async_resolve(host, port, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
         if (ec) return impl_->handle_bootstrap_error("Resolve", ec);
-
+        
         boost::asio::ip::tcp::socket socket(impl_->ioc);
-        impl_->session = std::make_shared<WebSocketSession>(std::move(socket), impl_->ssl_ctx, impl_->callback);
-
-        auto self_session = impl_->session;
-
+        auto self_session = std::make_shared<WebSocketSession>(std::move(socket), impl_->ssl_ctx, impl_->callback);
+        
+        impl_->session = self_session;
+        
         boost::beast::get_lowest_layer(self_session->stream()).async_connect(results,
-            boost::asio::bind_executor(self_session->strand(), [this, self_session, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type::endpoint_type) {
-                if (ec) return impl_->handle_bootstrap_error("Connect", ec);
-
-                self_session->stream().next_layer().async_handshake(boost::asio::ssl::stream_base::client,
-                    boost::asio::bind_executor(self_session->strand(), [this, self_session, host](boost::beast::error_code ec) {
-                        if (ec) return impl_->handle_bootstrap_error("SSL Handshake", ec);
-
-                        self_session->stream().async_handshake(host, "/",
-                            boost::asio::bind_executor(self_session->strand(), [this, self_session](boost::beast::error_code ec) {
-                                if (ec) return impl_->handle_bootstrap_error("WS Handshake", ec);
-                                self_session->start(false);
-                            }));
-                    }));
-            }));
+                                                                             boost::asio::bind_executor(self_session->strand(), [this, self_session, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type::endpoint_type) {
+            if (ec) {
+                impl_->session.reset();
+                return impl_->handle_bootstrap_error("Connect", ec);
+            }
+            
+            // Запускаем инкапсулированную цепочку SSL -> WS внутри сессии
+            self_session->start_client(host);
+        }));
     });
 }
 
@@ -253,7 +264,14 @@ void BoostClientDriver::run() {
 
 void BoostClientDriver::stop() {
     impl_->work.reset();
-    impl_->ioc.stop();
+    if (impl_->session) {
+        try {
+            // Вызываем без аргументов (expected 0)
+            boost::beast::get_lowest_layer(impl_->session->stream()).close();
+        } catch (...) {
+            // Подавляем исключения при закрытии
+        }
+    }
     if (impl_->client_thread.joinable()) {
         impl_->client_thread.join();
     }
