@@ -46,7 +46,7 @@ int main() {
 
         // 1. Создаем сервер и внедряем в него драйвер Beast
         NetworkServer server(std::make_unique<BoostServerDriver>());
-        server.init("127.0.0.1", 8080, "/Users/alexander/Documents/server.crt", "/Users/alexander/Documents/server.key", &server_cb);
+        server.init("127.0.0.1", 8080, "server.crt", "server.key", &server_cb);
 
         // 2. Создаем клиента и внедряем в него драйвер Beast
         NetworkClient client(std::make_unique<BoostClientDriver>());
