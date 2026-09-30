@@ -31,8 +31,8 @@ add_executable(WSTransportDemo src/main.cpp)
 
 target_link_libraries(WSTransportDemo PRIVATE WSTransport)
 
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/res/certs/server.crt" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/res/certs/server.key" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/res/certs/server.crt" "${CMAKE_CURRENT_BINARY_DIR}/res/certs/server.crt" COPYONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/res/certs/server.key" "${CMAKE_CURRENT_BINARY_DIR}/res/certs/server.key" COPYONLY)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(WSTransport PRIVATE -Wall -Wextra -pthread)

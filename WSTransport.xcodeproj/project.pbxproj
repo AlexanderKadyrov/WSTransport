@@ -33,7 +33,7 @@
 			path = src;
 			sourceTree = "<group>";
 		};
-		11B52B27306D119A0067B5C1 /* res */ = {
+		11B52B3C306D19490067B5C1 /* res */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = res;
 			sourceTree = "<group>";
@@ -54,7 +54,7 @@
 		113B517F304B5531008A8148 = {
 			isa = PBXGroup;
 			children = (
-				11B52B27306D119A0067B5C1 /* res */,
+				11B52B3C306D19490067B5C1 /* res */,
 				11B52B13306CF1720067B5C1 /* src */,
 				11B52B0E306CF1700067B5C1 /* include */,
 				113B5189304B5531008A8148 /* Products */,
@@ -87,7 +87,7 @@
 			fileSystemSynchronizedGroups = (
 				11B52B0E306CF1700067B5C1 /* include */,
 				11B52B13306CF1720067B5C1 /* src */,
-				11B52B27306D119A0067B5C1 /* res */,
+				11B52B3C306D19490067B5C1 /* res */,
 			);
 			name = WSTransport;
 			packageProductDependencies = (
