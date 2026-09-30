@@ -20,15 +20,15 @@ public:
         }
     }
 
-    void onReceive(NetworkTransport& transport, const std::vector<uint8_t> data) override {
+    void onReceive(NetworkTransport& transport, const std::vector<uint8_t>& data) override {
         std::string msg(data.begin(), data.end());
         std::cout << "[" << name_ << "] Получено и дешифровано: " << msg << "\n";
         if (name_ == "Server") {
-            transport.sendData(data); // Реализация эхо-сервера
+            transport.sendData(data); // Передача ссылки без лишней аллокации памяти
         }
     }
 
-    void onError(NetworkTransport& transport, const std::string error) override {
+    void onError(NetworkTransport& transport, const std::string& error) override {
         (void)transport;
         std::cerr << "[" << name_ << "] Ошибка сети: " << error << "\n";
     }
