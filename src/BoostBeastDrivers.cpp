@@ -54,7 +54,7 @@ public:
         }));
     }
 
-    void sendData(const std::vector<uint8_t>& data) override {
+    void sendData(const std::vector<NetworkByte>& data) override {
         auto shared_data = std::make_shared<std::vector<uint8_t>>(data);
         auto self = shared_from_this();
         boost::asio::post(strand_, [self, shared_data]() {
@@ -114,7 +114,7 @@ private:
             return;
         }
         
-        std::vector<uint8_t> data(read_buffer_.size());
+        std::vector<NetworkByte> data(read_buffer_.size());
         boost::asio::buffer_copy(boost::asio::buffer(data), read_buffer_.data());
         read_buffer_.consume(read_buffer_.size());
         

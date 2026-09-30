@@ -3,19 +3,20 @@
 
 #include <vector>
 #include <string>
-#include <cstdint>
+
+typedef unsigned char NetworkByte;
 
 class NetworkTransport {
 public:
-    virtual ~NetworkTransport() = default;
-    virtual void sendData(const std::vector<uint8_t>& data) = 0;
+    virtual ~NetworkTransport() {};
+    virtual void sendData(const std::vector<NetworkByte>& data) = 0;
 };
 
 class NetworkTransportCallback {
 public:
-    virtual ~NetworkTransportCallback() = default;
+    virtual ~NetworkTransportCallback() {};
     virtual void onConnect(NetworkTransport& transport) = 0;
-    virtual void onReceive(NetworkTransport& transport, const std::vector<uint8_t>& data) = 0;
+    virtual void onReceive(NetworkTransport& transport, const std::vector<NetworkByte>& data) = 0;
     virtual void onError(NetworkTransport& transport, const std::string& error) = 0;
     virtual void onDisconnect(NetworkTransport& transport) = 0;
 };

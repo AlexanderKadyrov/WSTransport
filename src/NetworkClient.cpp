@@ -7,4 +7,4 @@ void NetworkClient::init(NetworkTransportCallback* callback) { driver_->configur
 void NetworkClient::connect(const std::string& host, const std::string& port) { driver_->connect(host, port); }
 void NetworkClient::run() { driver_->run(); }
 void NetworkClient::stop() { driver_->stop(); }
-void NetworkClient::send(const std::vector<uint8_t>& data) { driver_->send(data); }
+void NetworkClient::send(const std::vector<NetworkByte>& data) { driver_->send(data); }

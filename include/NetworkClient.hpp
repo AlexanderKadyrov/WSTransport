@@ -16,7 +16,7 @@ public:
     void connect(const std::string& host, const std::string& port);
     void run();
     void stop();
-    void send(const std::vector<uint8_t>& data);
+    void send(const std::vector<NetworkByte>& data);
 };
 
 #endif // NETWORK_CLIENT_HPP

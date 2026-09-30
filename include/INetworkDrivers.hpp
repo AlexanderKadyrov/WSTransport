@@ -4,11 +4,10 @@
 #include "NetworkTransport.h"
 #include <string>
 #include <vector>
-#include <cstdint>
 
 class IServerDriver {
 public:
-    virtual ~IServerDriver() = default;
+    virtual ~IServerDriver() {};
     virtual void configure(const std::string& address, unsigned short port,
                            const std::string& cert_file, const std::string& key_file,
                            NetworkTransportCallback* callback) = 0;
@@ -18,12 +17,12 @@ public:
 
 class IClientDriver {
 public:
-    virtual ~IClientDriver() = default;
+    virtual ~IClientDriver() {};
     virtual void configure(NetworkTransportCallback* callback) = 0;
     virtual void connect(const std::string& host, const std::string& port) = 0;
     virtual void run() = 0;
     virtual void stop() = 0;
-    virtual void send(const std::vector<uint8_t>& data) = 0;
+    virtual void send(const std::vector<NetworkByte>& data) = 0;
 };
 
 #endif // INETWORK_DRIVERS_HPP
