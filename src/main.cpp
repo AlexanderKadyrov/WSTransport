@@ -46,7 +46,7 @@ int main() {
 
         // 1. Создаем сервер
         NetworkServer server(std::unique_ptr<BoostServerDriver>(
-            new BoostServerDriver("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key")
+            new BoostServerDriver("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key", 4)
         ));
         server.init(&server_cb);
 
@@ -57,7 +57,7 @@ int main() {
         client.init(&client_cb);
 
         // 3. Запуск сетевых движков на пулах потоков внутри драйверов
-        server.start(4); // 4 потока для сервера
+        server.start(); // 4 потока для сервера
 
         // 4. Инициализация подключения
         std::cout << "[Main] Клиент пытается установить соединение...\n";

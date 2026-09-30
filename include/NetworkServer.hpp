@@ -12,7 +12,7 @@ public:
     
     void init(NetworkTransportCallback* callback);
               
-    void start(int thread_count = 4);
+    void start();
     void stop();
 };
 

@@ -9,7 +9,7 @@ class IServerDriver {
 public:
     virtual ~IServerDriver() {};
     virtual void configure(NetworkTransportCallback* callback) = 0;
-    virtual void start(int thread_count) = 0;
+    virtual void start() = 0;
     virtual void stop() = 0;
 };
 

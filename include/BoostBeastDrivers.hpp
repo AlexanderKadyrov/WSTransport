@@ -14,12 +14,13 @@ public:
         const std::string& address,
         unsigned short port,
         const std::string& cert_file,
-        const std::string& key_file
+        const std::string& key_file,
+        int thread_count = 1
     );
     ~BoostServerDriver() override;
 
     void configure(NetworkTransportCallback* callback) override;
-    void start(int thread_count) override;
+    void start() override;
     void stop() override;
 };
 

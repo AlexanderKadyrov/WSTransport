@@ -7,5 +7,5 @@ void NetworkServer::init(NetworkTransportCallback* callback) {
     driver_->configure(callback);
 }
 
-void NetworkServer::start(int thread_count) { driver_->start(thread_count); }
+void NetworkServer::start() { driver_->start(); }
 void NetworkServer::stop() { driver_->stop(); }

@@ -161,6 +161,7 @@ public:
     std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
     NetworkTransportCallback* callback = nullptr;
     std::vector<std::thread> thread_pool;
+    int num_threads;
 
     Impl() : ssl_ctx(boost::asio::ssl::context::tlsv12) {}
 
@@ -181,8 +182,10 @@ BoostServerDriver::BoostServerDriver(
     const std::string& address,
     unsigned short port,
     const std::string& cert_file,
-    const std::string& key_file
+    const std::string& key_file,
+    int thread_count
 ) : impl_(std::unique_ptr<Impl>(new Impl())) {
+    impl_->num_threads = thread_count;
     impl_->ssl_ctx.set_options(boost::asio::ssl::context::default_workarounds |
                                impl_->ssl_ctx.no_sslv2 |
                                impl_->ssl_ctx.no_sslv3 |
@@ -203,8 +206,8 @@ void BoostServerDriver::configure(NetworkTransportCallback* callback) {
     impl_->do_accept(); 
 }
 
-void BoostServerDriver::start(int thread_count) {
-    for (int i = 0; i < thread_count; ++i) {
+void BoostServerDriver::start() {
+    for (int i = 0; i < impl_->num_threads; ++i) {
         impl_->thread_pool.emplace_back([this]() { impl_->ioc.run(); });
     }
 }
