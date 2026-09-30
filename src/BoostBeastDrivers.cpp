@@ -192,10 +192,17 @@ void BoostServerDriver::start(int thread_count) {
 }
 
 void BoostServerDriver::stop() {
+    // 1. Закрываем акцептор (новые TCP-соединения больше не принимаются)
     if (impl_->acceptor && impl_->acceptor->is_open()) {
-        boost::system::error_code ec; // Используем правильный тип Asio для TCP-акцептора
+        boost::system::error_code ec;
         impl_->acceptor->close(ec);
     }
+
+    // 2. ДОБАВЛЕНО: Принудительно останавливаем контекст.
+    // Это мгновенно прерывает вечный цикл async_read у серверных сессий
+    impl_->ioc.stop();
+
+    // 3. Теперь потоки гарантированно выйдут из ioc.run() и join() отработает мгновенно
     for (auto& th : impl_->thread_pool) {
         if (th.joinable()) {
             th.join();
