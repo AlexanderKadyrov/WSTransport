@@ -13,7 +13,7 @@ public:
     explicit NetworkClient(std::unique_ptr<IClientDriver> driver);
     
     void init(NetworkTransportCallback* callback);
-    void connect(const std::string& host, const std::string& port);
+    void connect();
     void run();
     void stop();
     void send(const std::vector<NetworkByte>& data);

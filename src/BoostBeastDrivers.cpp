@@ -241,12 +241,16 @@ public:
     std::shared_ptr<WebSocketSession> session;
     NetworkTransportCallback* callback = nullptr;
     std::thread client_thread;
+    std::string target_host;
+    std::string target_port;
 
-    Impl()
+    Impl(const std::string& host, const std::string& port)
     : ioc()
     , work(new work_guard_type(boost::asio::make_work_guard(ioc)))
     , ssl_ctx(boost::asio::ssl::context::tlsv12)
     , resolver(ioc)
+    , target_host(host)
+    , target_port(port)
     {}
 
     void handle_bootstrap_error(const std::string& phase, boost::beast::error_code ec) {
@@ -254,7 +258,11 @@ public:
     }
 };
 
-BoostClientDriver::BoostClientDriver() : impl_(std::unique_ptr<Impl>(new Impl())) {}
+BoostClientDriver::BoostClientDriver(
+    const std::string& host,
+    const std::string& port
+) : impl_(std::unique_ptr<Impl>(new Impl(host, port))) {}
+
 BoostClientDriver::~BoostClientDriver() { stop(); }
 
 void BoostClientDriver::configure(NetworkTransportCallback* callback) {
@@ -262,8 +270,9 @@ void BoostClientDriver::configure(NetworkTransportCallback* callback) {
     impl_->ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
 }
 
-void BoostClientDriver::connect(const std::string& host, const std::string& port) {
-    impl_->resolver.async_resolve(host, port, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
+void BoostClientDriver::connect() {
+    std::string host = impl_->target_host;
+    impl_->resolver.async_resolve(host, impl_->target_port, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
         if (ec) return impl_->handle_bootstrap_error("Resolve", ec);
         
         boost::asio::ip::tcp::socket socket(impl_->ioc);

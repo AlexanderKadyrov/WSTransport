@@ -44,13 +44,16 @@ int main() {
         EchoCallback server_cb("Server");
         EchoCallback client_cb("Client");
 
+        // 1. Создаем сервер
         NetworkServer server(std::unique_ptr<BoostServerDriver>(
             new BoostServerDriver("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key")
         ));
         server.init(&server_cb);
 
-        // 2. Создаем клиента и внедряем в него драйвер Beast
-        NetworkClient client(std::unique_ptr<BoostClientDriver>(new BoostClientDriver()));
+        // 2. Создаем клиента, передавая адрес в его драйвер
+        NetworkClient client(std::unique_ptr<BoostClientDriver>(
+            new BoostClientDriver("127.0.0.1", "8080")
+        ));
         client.init(&client_cb);
 
         // 3. Запуск сетевых движков на пулах потоков внутри драйверов
@@ -58,7 +61,7 @@ int main() {
 
         // 4. Инициализация подключения
         std::cout << "[Main] Клиент пытается установить соединение...\n";
-        client.connect("127.0.0.1", "8080");
+        client.connect();
         client.run();    // 1 поток для клиента
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Ожидание завершения хендшейков

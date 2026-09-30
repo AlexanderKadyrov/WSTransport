@@ -27,11 +27,14 @@ class BoostClientDriver : public IClientDriver {
     class Impl;
     std::unique_ptr<Impl> impl_;
 public:
-    BoostClientDriver();
+    BoostClientDriver(
+        const std::string& host,
+        const std::string& port
+    );
     ~BoostClientDriver() override;
 
     void configure(NetworkTransportCallback* callback) override;
-    void connect(const std::string& host, const std::string& port) override;
+    void connect() override;
     void run() override;
     void stop() override;
     void send(const std::vector<NetworkByte>& data) override;
