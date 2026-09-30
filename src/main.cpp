@@ -44,9 +44,10 @@ int main() {
         EchoCallback server_cb("Server");
         EchoCallback client_cb("Client");
 
-        // 1. Создаем сервер и внедряем в него драйвер Beast
-        NetworkServer server(std::unique_ptr<BoostServerDriver>(new BoostServerDriver()));
-        server.init("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key", &server_cb);
+        NetworkServer server(std::unique_ptr<BoostServerDriver>(
+            new BoostServerDriver("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key")
+        ));
+        server.init(&server_cb);
 
         // 2. Создаем клиента и внедряем в него драйвер Beast
         NetworkClient client(std::unique_ptr<BoostClientDriver>(new BoostClientDriver()));

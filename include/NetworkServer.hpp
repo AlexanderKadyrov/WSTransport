@@ -10,9 +10,7 @@ class NetworkServer {
 public:
     explicit NetworkServer(std::unique_ptr<IServerDriver> driver);
     
-    void init(const std::string& address, unsigned short port,
-              const std::string& cert_file, const std::string& key_file,
-              NetworkTransportCallback* callback);
+    void init(NetworkTransportCallback* callback);
               
     void start(int thread_count = 4);
     void stop();

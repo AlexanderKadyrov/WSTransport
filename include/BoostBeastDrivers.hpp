@@ -10,12 +10,15 @@ class BoostServerDriver : public IServerDriver {
     class Impl;
     std::unique_ptr<Impl> impl_;
 public:
-    BoostServerDriver();
+    BoostServerDriver(
+        const std::string& address,
+        unsigned short port,
+        const std::string& cert_file,
+        const std::string& key_file
+    );
     ~BoostServerDriver() override;
 
-    void configure(const std::string& address, unsigned short port,
-                   const std::string& cert_file, const std::string& key_file,
-                   NetworkTransportCallback* callback) override;
+    void configure(NetworkTransportCallback* callback) override;
     void start(int thread_count) override;
     void stop() override;
 };

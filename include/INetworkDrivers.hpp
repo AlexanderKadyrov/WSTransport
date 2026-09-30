@@ -8,9 +8,7 @@
 class IServerDriver {
 public:
     virtual ~IServerDriver() {};
-    virtual void configure(const std::string& address, unsigned short port,
-                           const std::string& cert_file, const std::string& key_file,
-                           NetworkTransportCallback* callback) = 0;
+    virtual void configure(NetworkTransportCallback* callback) = 0;
     virtual void start(int thread_count) = 0;
     virtual void stop() = 0;
 };
