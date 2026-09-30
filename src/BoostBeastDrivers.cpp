@@ -100,13 +100,28 @@ private:
             if (callback_) callback_->onDisconnect(*this);
             return;
         }
-        if (ec) return handle_error("Read", ec);
-
+        
+        // ДОБАВЬТЕ ЭТУ ПРОВЕРКУ:
+        // Игнорируем ошибки принудительной остановки Asio и SSL-обрыва при закрытии
+        if (ec == boost::asio::error::operation_aborted ||
+            ec == boost::asio::ssl::error::stream_truncated) {
+            if (callback_) callback_->onDisconnect(*this);
+            return;
+        }
+        
+        if (ec) {
+            handle_error("Read", ec);
+            return
+        }
+        
         std::vector<uint8_t> data(read_buffer_.size());
         boost::asio::buffer_copy(boost::asio::buffer(data), read_buffer_.data());
         read_buffer_.consume(read_buffer_.size());
-
-        if (callback_) callback_->onReceive(*this, data);
+        
+        if (callback_) {
+            callback_->onReceive(*this, data);
+        }
+        
         do_read();
     }
 
