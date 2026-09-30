@@ -20,11 +20,10 @@ class WebSocketSession : public NetworkTransport, public std::enable_shared_from
 public:
     explicit WebSocketSession(
                               boost::asio::ip::tcp::socket socket,
-                              boost::asio::io_context::strand strand,
                               boost::asio::ssl::context& ctx,
                               NetworkTransportCallback* callback
                               )
-    : strand_(strand),
+    : strand_(static_cast<boost::asio::io_context&>(socket.get_executor().context())),
     ws_(std::move(socket), ctx),
     callback_(callback)
     {}
@@ -52,6 +51,7 @@ public:
     }
 
     boost::beast::websocket::stream<boost::beast::ssl_stream<boost::beast::tcp_stream> >& stream() { return ws_; }
+    boost::asio::io_context::strand& strand() { return strand_; }
 
 private:
     void on_ssl_handshake(boost::beast::error_code ec, bool is_server) {
@@ -84,8 +84,8 @@ private:
         }
         if (ec) return handle_error("Read", ec);
 
-        const uint8_t* data_ptr = static_cast<const uint8_t*>(read_buffer_.data().data());
-        std::vector<uint8_t> data(data_ptr, data_ptr + read_buffer_.size());
+        std::vector<uint8_t> data(read_buffer_.size());
+        boost::asio::buffer_copy(boost::asio::buffer(data), read_buffer_.data());
         read_buffer_.consume(read_buffer_.size());
 
         if (callback_) callback_->onReceive(*this, data);
@@ -133,8 +133,7 @@ public:
     void do_accept() {
         acceptor->async_accept([this](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
             if (!ec) {
-                boost::asio::io_context::strand session_strand(ioc);
-                auto session = std::make_shared<WebSocketSession>(std::move(socket), session_strand, ssl_ctx, callback);
+                auto session = std::make_shared<WebSocketSession>(std::move(socket), ssl_ctx, callback);
                 session->start(true);
             }
             do_accept();
@@ -209,22 +208,26 @@ void BoostClientDriver::connect(const std::string& host, const std::string& port
     impl_->resolver.async_resolve(host, port, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
         if (ec) return impl_->handle_bootstrap_error("Resolve", ec);
 
-        boost::asio::io_context::strand session_strand(impl_->ioc);
         boost::asio::ip::tcp::socket socket(impl_->ioc);
-        impl_->session = std::make_shared<WebSocketSession>(std::move(socket), session_strand, impl_->ssl_ctx, impl_->callback);
+        impl_->session = std::make_shared<WebSocketSession>(std::move(socket), impl_->ssl_ctx, impl_->callback);
 
-        boost::beast::get_lowest_layer(impl_->session->stream()).async_connect(results, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type::endpoint_type) {
-            if (ec) return impl_->handle_bootstrap_error("Connect", ec);
+        auto self_session = impl_->session;
 
-            impl_->session->stream().next_layer().async_handshake(boost::asio::ssl::stream_base::client, [this, host](boost::beast::error_code ec) {
-                if (ec) return impl_->handle_bootstrap_error("SSL Handshake", ec);
+        boost::beast::get_lowest_layer(self_session->stream()).async_connect(results,
+            boost::asio::bind_executor(self_session->strand(), [this, self_session, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type::endpoint_type) {
+                if (ec) return impl_->handle_bootstrap_error("Connect", ec);
 
-                impl_->session->stream().async_handshake(host, "/", [this](boost::beast::error_code ec) {
-                    if (ec) return impl_->handle_bootstrap_error("WS Handshake", ec);
-                    impl_->session->start(false);
-                });
-            });
-        });
+                self_session->stream().next_layer().async_handshake(boost::asio::ssl::stream_base::client,
+                    boost::asio::bind_executor(self_session->strand(), [this, self_session, host](boost::beast::error_code ec) {
+                        if (ec) return impl_->handle_bootstrap_error("SSL Handshake", ec);
+
+                        self_session->stream().async_handshake(host, "/",
+                            boost::asio::bind_executor(self_session->strand(), [this, self_session](boost::beast::error_code ec) {
+                                if (ec) return impl_->handle_bootstrap_error("WS Handshake", ec);
+                                self_session->start(false);
+                            }));
+                    }));
+            }));
     });
 }
 
