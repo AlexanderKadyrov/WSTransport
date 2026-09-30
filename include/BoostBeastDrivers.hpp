@@ -36,7 +36,7 @@ public:
 
     void configure(NetworkTransportCallback* callback) override;
     void connect() override;
-    void run() override;
+    void start() override;
     void stop() override;
     void send(const std::vector<NetworkByte>& data) override;
 };

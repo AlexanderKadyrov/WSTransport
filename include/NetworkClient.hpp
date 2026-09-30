@@ -14,7 +14,7 @@ public:
     
     void init(NetworkTransportCallback* callback);
     void connect();
-    void run();
+    void start();
     void stop();
     void send(const std::vector<NetworkByte>& data);
 };

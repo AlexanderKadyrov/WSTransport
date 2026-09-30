@@ -62,7 +62,7 @@ int main() {
         // 4. Инициализация подключения
         std::cout << "[Main] Клиент пытается установить соединение...\n";
         client.connect();
-        client.run();    // 1 поток для клиента
+        client.start();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Ожидание завершения хендшейков
 

@@ -296,7 +296,7 @@ void BoostClientDriver::connect() {
     });
 }
 
-void BoostClientDriver::run() {
+void BoostClientDriver::start() {
     impl_->client_thread = std::thread([this]() {
         impl_->ioc.run();
     });
