@@ -16,11 +16,11 @@ public:
         std::cout << "[" << name_ << "] Сессия WSS открыта!\n";
         if (name_ == "Client") {
             std::string hello = "Привет от Клиента из onConnect";
-            transport.sendData(std::vector<uint8_t>(hello.begin(), hello.end()));
+            transport.sendData(std::vector<NetworkByte>(hello.begin(), hello.end()));
         }
     }
 
-    void onReceive(NetworkTransport& transport, const std::vector<uint8_t>& data) override {
+    void onReceive(NetworkTransport& transport, const std::vector<NetworkByte>& data) override {
         std::string msg(data.begin(), data.end());
         std::cout << "[" << name_ << "] Получено и дешифровано: " << msg << "\n";
         if (name_ == "Server") {
@@ -64,7 +64,7 @@ int main() {
 
         // 5. Произвольная отправка сообщения из бизнес-кода в любой момент времени
         std::string custom_msg = "Кастомный запрос из функции main";
-        std::vector<uint8_t> data(custom_msg.begin(), custom_msg.end());
+        std::vector<NetworkByte> data(custom_msg.begin(), custom_msg.end());
         std::cout << "[Main] Отправка ручного сообщения через фасад...\n";
         client.send(data);
 
