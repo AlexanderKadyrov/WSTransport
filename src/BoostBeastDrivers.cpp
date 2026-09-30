@@ -142,7 +142,7 @@ public:
     }
 };
 
-BoostServerDriver::BoostServerDriver() : impl_(std::make_unique<Impl>()) {}
+BoostServerDriver::BoostServerDriver() : impl_(std::unique_ptr<Impl>(new Impl())) {}
 BoostServerDriver::~BoostServerDriver() { stop(); }
 
 void BoostServerDriver::configure(const std::string& address, unsigned short port,
@@ -157,7 +157,12 @@ void BoostServerDriver::configure(const std::string& address, unsigned short por
     impl_->ssl_ctx.use_private_key_file(key_file, boost::asio::ssl::context::pem);
 
     boost::asio::ip::tcp::endpoint ep(boost::asio::ip::make_address(address), port);
-    impl_->acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(impl_->ioc, ep);
+    
+    // Заменено для C++11:
+    impl_->acceptor = std::unique_ptr<boost::asio::ip::tcp::acceptor>(
+        new boost::asio::ip::tcp::acceptor(impl_->ioc, ep)
+    );
+    
     impl_->do_accept();
 }
 
@@ -192,7 +197,7 @@ public:
     }
 };
 
-BoostClientDriver::BoostClientDriver() : impl_(std::make_unique<Impl>()) {}
+BoostClientDriver::BoostClientDriver() : impl_(std::unique_ptr<Impl>(new Impl())) {}
 BoostClientDriver::~BoostClientDriver() { stop(); }
 
 void BoostClientDriver::configure(NetworkTransportCallback* callback) {
