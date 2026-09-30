@@ -11,6 +11,7 @@
 #include <queue>
 #include <functional>
 #include <iostream>
+#include <cstdint>
 #include <thread>
 
 using work_guard_type = boost::asio::executor_work_guard<boost::asio::io_context::executor_type>;
