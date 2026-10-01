@@ -11,6 +11,7 @@
 #include <queue>
 #include <functional>
 #include <iostream>
+#include <cstdint>
 #include <thread>
 
 using work_guard_type = boost::asio::executor_work_guard<boost::asio::io_context::executor_type>;
@@ -54,8 +55,8 @@ public:
         }));
     }
 
-    void sendData(const std::vector<uint8_t>& data) override {
-        auto shared_data = std::make_shared<std::vector<uint8_t>>(data);
+    void sendData(const std::vector<NetworkByte>& data) override {
+        auto shared_data = std::make_shared<std::vector<uint8_t>>(data.begin(), data.end());
         auto self = shared_from_this();
         boost::asio::post(strand_, [self, shared_data]() {
             bool write_in_progress = !self->write_queue_.empty();
@@ -114,7 +115,7 @@ private:
             return;
         }
         
-        std::vector<uint8_t> data(read_buffer_.size());
+        std::vector<NetworkByte> data(read_buffer_.size());
         boost::asio::buffer_copy(boost::asio::buffer(data), read_buffer_.data());
         read_buffer_.consume(read_buffer_.size());
         
@@ -160,6 +161,7 @@ public:
     std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
     NetworkTransportCallback* callback = nullptr;
     std::vector<std::thread> thread_pool;
+    int num_threads;
 
     Impl() : ssl_ctx(boost::asio::ssl::context::tlsv12) {}
 
@@ -176,13 +178,14 @@ public:
     }
 };
 
-BoostServerDriver::BoostServerDriver() : impl_(std::unique_ptr<Impl>(new Impl())) {}
-BoostServerDriver::~BoostServerDriver() { stop(); }
-
-void BoostServerDriver::configure(const std::string& address, unsigned short port,
-                                  const std::string& cert_file, const std::string& key_file,
-                                  NetworkTransportCallback* callback) {
-    impl_->callback = callback;
+BoostServerDriver::BoostServerDriver(
+    const std::string& address,
+    unsigned short port,
+    const std::string& cert_file,
+    const std::string& key_file,
+    int thread_count
+) : impl_(std::unique_ptr<Impl>(new Impl())) {
+    impl_->num_threads = thread_count;
     impl_->ssl_ctx.set_options(boost::asio::ssl::context::default_workarounds |
                                impl_->ssl_ctx.no_sslv2 |
                                impl_->ssl_ctx.no_sslv3 |
@@ -191,17 +194,20 @@ void BoostServerDriver::configure(const std::string& address, unsigned short por
     impl_->ssl_ctx.use_private_key_file(key_file, boost::asio::ssl::context::pem);
 
     boost::asio::ip::tcp::endpoint ep(boost::asio::ip::make_address(address), port);
-    
-    // Заменено для C++11:
     impl_->acceptor = std::unique_ptr<boost::asio::ip::tcp::acceptor>(
         new boost::asio::ip::tcp::acceptor(impl_->ioc, ep)
     );
-    
-    impl_->do_accept();
 }
 
-void BoostServerDriver::start(int thread_count) {
-    for (int i = 0; i < thread_count; ++i) {
+BoostServerDriver::~BoostServerDriver() { stop(); }
+
+void BoostServerDriver::configure(NetworkTransportCallback* callback) {
+    impl_->callback = callback;
+    impl_->do_accept(); 
+}
+
+void BoostServerDriver::start() {
+    for (int i = 0; i < impl_->num_threads; ++i) {
         impl_->thread_pool.emplace_back([this]() { impl_->ioc.run(); });
     }
 }
@@ -238,12 +244,16 @@ public:
     std::shared_ptr<WebSocketSession> session;
     NetworkTransportCallback* callback = nullptr;
     std::thread client_thread;
+    std::string target_host;
+    std::string target_port;
 
-    Impl()
+    Impl(const std::string& host, const std::string& port)
     : ioc()
     , work(new work_guard_type(boost::asio::make_work_guard(ioc)))
     , ssl_ctx(boost::asio::ssl::context::tlsv12)
     , resolver(ioc)
+    , target_host(host)
+    , target_port(port)
     {}
 
     void handle_bootstrap_error(const std::string& phase, boost::beast::error_code ec) {
@@ -251,7 +261,11 @@ public:
     }
 };
 
-BoostClientDriver::BoostClientDriver() : impl_(std::unique_ptr<Impl>(new Impl())) {}
+BoostClientDriver::BoostClientDriver(
+    const std::string& host,
+    const std::string& port
+) : impl_(std::unique_ptr<Impl>(new Impl(host, port))) {}
+
 BoostClientDriver::~BoostClientDriver() { stop(); }
 
 void BoostClientDriver::configure(NetworkTransportCallback* callback) {
@@ -259,8 +273,9 @@ void BoostClientDriver::configure(NetworkTransportCallback* callback) {
     impl_->ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
 }
 
-void BoostClientDriver::connect(const std::string& host, const std::string& port) {
-    impl_->resolver.async_resolve(host, port, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
+void BoostClientDriver::connect() {
+    std::string host = impl_->target_host;
+    impl_->resolver.async_resolve(host, impl_->target_port, [this, host](boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
         if (ec) return impl_->handle_bootstrap_error("Resolve", ec);
         
         boost::asio::ip::tcp::socket socket(impl_->ioc);
@@ -281,7 +296,7 @@ void BoostClientDriver::connect(const std::string& host, const std::string& port
     });
 }
 
-void BoostClientDriver::run() {
+void BoostClientDriver::start() {
     impl_->client_thread = std::thread([this]() {
         impl_->ioc.run();
     });
@@ -303,7 +318,7 @@ void BoostClientDriver::stop() {
     impl_->session.reset();
 }
 
-void BoostClientDriver::send(const std::vector<uint8_t>& data) {
+void BoostClientDriver::send(const std::vector<NetworkByte>& data) {
     if (impl_->session) {
         impl_->session->sendData(data);
     }

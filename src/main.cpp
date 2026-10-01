@@ -16,11 +16,11 @@ public:
         std::cout << "[" << name_ << "] Сессия WSS открыта!\n";
         if (name_ == "Client") {
             std::string hello = "Привет от Клиента из onConnect";
-            transport.sendData(std::vector<uint8_t>(hello.begin(), hello.end()));
+            transport.sendData(std::vector<NetworkByte>(hello.begin(), hello.end()));
         }
     }
 
-    void onReceive(NetworkTransport& transport, const std::vector<uint8_t>& data) override {
+    void onReceive(NetworkTransport& transport, const std::vector<NetworkByte>& data) override {
         std::string msg(data.begin(), data.end());
         std::cout << "[" << name_ << "] Получено и дешифровано: " << msg << "\n";
         if (name_ == "Server") {
@@ -44,27 +44,31 @@ int main() {
         EchoCallback server_cb("Server");
         EchoCallback client_cb("Client");
 
-        // 1. Создаем сервер и внедряем в него драйвер Beast
-        NetworkServer server(std::unique_ptr<BoostServerDriver>(new BoostServerDriver()));
-        server.init("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key", &server_cb);
+        // 1. Создаем сервер
+        NetworkServer server(std::unique_ptr<BoostServerDriver>(
+            new BoostServerDriver("127.0.0.1", 8080, "res/certs/server.crt", "res/certs/server.key", 4)
+        ));
+        server.init(&server_cb);
 
-        // 2. Создаем клиента и внедряем в него драйвер Beast
-        NetworkClient client(std::unique_ptr<BoostClientDriver>(new BoostClientDriver()));
+        // 2. Создаем клиента, передавая адрес в его драйвер
+        NetworkClient client(std::unique_ptr<BoostClientDriver>(
+            new BoostClientDriver("127.0.0.1", "8080")
+        ));
         client.init(&client_cb);
 
         // 3. Запуск сетевых движков на пулах потоков внутри драйверов
-        server.start(4); // 4 потока для сервера
+        server.start(); // 4 потока для сервера
 
         // 4. Инициализация подключения
         std::cout << "[Main] Клиент пытается установить соединение...\n";
-        client.connect("127.0.0.1", "8080");
-        client.run();    // 1 поток для клиента
+        client.connect();
+        client.start();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Ожидание завершения хендшейков
 
         // 5. Произвольная отправка сообщения из бизнес-кода в любой момент времени
         std::string custom_msg = "Кастомный запрос из функции main";
-        std::vector<uint8_t> data(custom_msg.begin(), custom_msg.end());
+        std::vector<NetworkByte> data(custom_msg.begin(), custom_msg.end());
         std::cout << "[Main] Отправка ручного сообщения через фасад...\n";
         client.send(data);
 

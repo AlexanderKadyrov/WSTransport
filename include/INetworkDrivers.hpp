@@ -4,26 +4,25 @@
 #include "NetworkTransport.h"
 #include <string>
 #include <vector>
-#include <cstdint>
 
-class IServerDriver {
+class INetworkDriver {
 public:
-    virtual ~IServerDriver() = default;
-    virtual void configure(const std::string& address, unsigned short port,
-                           const std::string& cert_file, const std::string& key_file,
-                           NetworkTransportCallback* callback) = 0;
-    virtual void start(int thread_count) = 0;
+    virtual ~INetworkDriver() {}
+    virtual void configure(NetworkTransportCallback* callback) = 0;
+    virtual void start() = 0;
     virtual void stop() = 0;
 };
 
-class IClientDriver {
+class IServerDriver : public INetworkDriver {
 public:
-    virtual ~IClientDriver() = default;
-    virtual void configure(NetworkTransportCallback* callback) = 0;
-    virtual void connect(const std::string& host, const std::string& port) = 0;
-    virtual void run() = 0;
-    virtual void stop() = 0;
-    virtual void send(const std::vector<uint8_t>& data) = 0;
+    virtual ~IServerDriver() {}
+};
+
+class IClientDriver : public INetworkDriver {
+public:
+    virtual ~IClientDriver() {}
+    virtual void connect() = 0;
+    virtual void send(const std::vector<NetworkByte>& data) = 0;
 };
 
 #endif // INETWORK_DRIVERS_HPP

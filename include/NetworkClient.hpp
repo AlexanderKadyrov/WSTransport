@@ -13,10 +13,10 @@ public:
     explicit NetworkClient(std::unique_ptr<IClientDriver> driver);
     
     void init(NetworkTransportCallback* callback);
-    void connect(const std::string& host, const std::string& port);
-    void run();
+    void connect();
+    void start();
     void stop();
-    void send(const std::vector<uint8_t>& data);
+    void send(const std::vector<NetworkByte>& data);
 };
 
 #endif // NETWORK_CLIENT_HPP
