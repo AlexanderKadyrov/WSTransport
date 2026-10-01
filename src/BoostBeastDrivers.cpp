@@ -188,7 +188,15 @@ private:
     }
 
     void handle_error(const std::string& context, boost::beast::error_code ec) {
-        if (callback_) callback_->onError(*this, context + ": " + ec.message());
+        if (ec == boost::asio::error::operation_aborted ||
+            ec == boost::asio::error::eof ||
+            ec == boost::asio::ssl::error::stream_truncated ||
+            ec.value() == EBADF) {
+            return;
+        }
+        if (callback_) {
+            callback_->onError(*this, context + ": " + ec.message());
+        }
     }
     
     boost::asio::io_context::strand strand_;
@@ -323,7 +331,9 @@ void BoostClientDriver::start() {}
 void BoostClientDriver::stop() {
     if (impl_->session) {
         try {
-            boost::beast::get_lowest_layer(impl_->session->stream()).close();
+            boost::beast::get_lowest_layer(impl_->session->stream()).socket().shutdown(
+                boost::asio::ip::tcp::socket::shutdown_both
+            );
         } catch (...) {}
     }
     impl_->session.reset();
