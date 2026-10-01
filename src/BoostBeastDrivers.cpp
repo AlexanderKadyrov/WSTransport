@@ -238,7 +238,7 @@ BoostServerDriver::BoostServerDriver(
 
     boost::asio::ip::tcp::endpoint ep(boost::asio::ip::make_address(address), port);
     impl_->acceptor = std::unique_ptr<boost::asio::ip::tcp::acceptor>(
-        new boost::asio::ip::tcp::acceptor(impl_->ctx->ioc, ep)
+        new boost::asio::ip::tcp::acceptor(impl_->ctx->ioc, ep, true)
     );
 }
 
