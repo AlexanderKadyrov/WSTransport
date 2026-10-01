@@ -5,6 +5,13 @@
 #include <string>
 #include <vector>
 
+class INetworkContext {
+public:
+    virtual ~INetworkContext() {}
+    virtual void start() = 0;
+    virtual void stop() = 0;
+};
+
 class INetworkDriver {
 public:
     virtual ~INetworkDriver() {}

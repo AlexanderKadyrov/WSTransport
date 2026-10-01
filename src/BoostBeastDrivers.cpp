@@ -17,6 +17,54 @@
 using work_guard_type = boost::asio::executor_work_guard<boost::asio::io_context::executor_type>;
 
 // ====================================================================
+// РЕАЛИЗАЦИЯ ОБЩЕГО ДВИЖКА (СКРЫТА ВНУТРИ .CPP)
+// ====================================================================
+class BoostNetworkContext : public INetworkContext {
+public:
+    boost::asio::io_context ioc;
+    boost::asio::ssl::context ssl_ctx;
+    std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work;
+    std::vector<std::thread> thread_pool;
+    int threads_to_run;
+
+    explicit BoostNetworkContext(int thread_count) 
+        : ioc(),
+          ssl_ctx(boost::asio::ssl::context::tlsv12),
+          work(new boost::asio::executor_work_guard<boost::asio::io_context::executor_type>(boost::asio::make_work_guard(ioc))),
+          threads_to_run(thread_count)
+    {
+        ssl_ctx.set_options(boost::asio::ssl::context::default_workarounds |
+                            boost::asio::ssl::context::no_sslv2 |
+                            boost::asio::ssl::context::no_sslv3 |
+                            boost::asio::ssl::context::single_dh_use);
+    }
+
+    ~BoostNetworkContext() override {
+        stop();
+    }
+
+    void start() override {
+        if (!thread_pool.empty()) return;
+        for (int i = 0; i < threads_to_run; ++i) {
+            thread_pool.emplace_back([this]() { ioc.run(); });
+        }
+    }
+
+    void stop() override {
+        work.reset(); 
+        ioc.stop();   
+        for (auto& th : thread_pool) {
+            if (th.joinable()) th.join();
+        }
+        thread_pool.clear();
+    }
+};
+
+std::shared_ptr<INetworkContext> create_network_context(int thread_count) {
+    return std::make_shared<BoostNetworkContext>(thread_count);
+}
+
+// ====================================================================
 // ВНУТРЕННИЙ КЛАСС СЕССИИ (БЕЗ ИЗМЕНЕНИЙ ЛОГИКИ СЕТИ)
 // ====================================================================
 class WebSocketSession : public NetworkTransport, public std::enable_shared_from_this<WebSocketSession> {
@@ -156,14 +204,24 @@ private:
 // ====================================================================
 class BoostServerDriver::Impl {
 public:
-    boost::asio::io_context ioc;
-    boost::asio::ssl::context ssl_ctx;
+    std::shared_ptr<BoostNetworkContext> shared_ctx;
+    
+    boost::asio::io_context local_ioc;
+    boost::asio::ssl::context local_ssl_ctx;
+    
+    boost::asio::io_context& ioc;
+    boost::asio::ssl::context& ssl_ctx;
+    
     std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
     NetworkTransportCallback* callback = nullptr;
     std::vector<std::thread> thread_pool;
-    int num_threads;
 
-    Impl() : ssl_ctx(boost::asio::ssl::context::tlsv12) {}
+    explicit Impl(std::shared_ptr<BoostNetworkContext> ctx) 
+        : shared_ctx(ctx),
+          local_ssl_ctx(boost::asio::ssl::context::tlsv12),
+          ioc(shared_ctx ? shared_ctx->ioc : local_ioc),
+          ssl_ctx(shared_ctx ? shared_ctx->ssl_ctx : local_ssl_ctx)
+    {}
 
     void do_accept() {
         acceptor->async_accept([this](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
@@ -183,13 +241,11 @@ BoostServerDriver::BoostServerDriver(
     unsigned short port,
     const std::string& cert_file,
     const std::string& key_file,
-    int thread_count
-) : impl_(std::unique_ptr<Impl>(new Impl())) {
-    impl_->num_threads = thread_count;
-    impl_->ssl_ctx.set_options(boost::asio::ssl::context::default_workarounds |
-                               impl_->ssl_ctx.no_sslv2 |
-                               impl_->ssl_ctx.no_sslv3 |
-                               impl_->ssl_ctx.single_dh_use);
+    std::shared_ptr<INetworkContext> shared_context
+) {
+    auto boost_ctx = std::static_pointer_cast<BoostNetworkContext>(shared_context);
+    impl_ = std::unique_ptr<Impl>(new Impl(boost_ctx));
+    
     impl_->ssl_ctx.use_certificate_chain_file(cert_file);
     impl_->ssl_ctx.use_private_key_file(key_file, boost::asio::ssl::context::pem);
 
@@ -207,27 +263,23 @@ void BoostServerDriver::configure(NetworkTransportCallback* callback) {
 }
 
 void BoostServerDriver::start() {
-    for (int i = 0; i < impl_->num_threads; ++i) {
-        impl_->thread_pool.emplace_back([this]() { impl_->ioc.run(); });
+    if (impl_->shared_ctx) {
+        return;
     }
+    impl_->thread_pool.emplace_back([this]() { impl_->ioc.run(); });
 }
 
 void BoostServerDriver::stop() {
-    // 1. Закрываем акцептор (новые TCP-соединения больше не принимаются)
     if (impl_->acceptor && impl_->acceptor->is_open()) {
         boost::system::error_code ec;
         impl_->acceptor->close(ec);
     }
-
-    // 2. ДОБАВЛЕНО: Принудительно останавливаем контекст.
-    // Это мгновенно прерывает вечный цикл async_read у серверных сессий
+    if (impl_->shared_ctx) {
+        return; // Общий контекст не останавливаем!
+    }
     impl_->ioc.stop();
-
-    // 3. Теперь потоки гарантированно выйдут из ioc.run() и join() отработает мгновенно
     for (auto& th : impl_->thread_pool) {
-        if (th.joinable()) {
-            th.join();
-        }
+        if (th.joinable()) th.join();
     }
     impl_->thread_pool.clear();
 }
@@ -237,9 +289,15 @@ void BoostServerDriver::stop() {
 // ====================================================================
 class BoostClientDriver::Impl {
 public:
-    boost::asio::io_context ioc;
-    std::unique_ptr<work_guard_type> work;
-    boost::asio::ssl::context ssl_ctx;
+    std::shared_ptr<BoostNetworkContext> shared_ctx;
+
+    boost::asio::io_context local_ioc;
+    std::unique_ptr<work_guard_type> local_work;
+    boost::asio::ssl::context local_ssl_ctx;
+
+    boost::asio::io_context& ioc;
+    boost::asio::ssl::context& ssl_ctx;
+    
     boost::asio::ip::tcp::resolver resolver;
     std::shared_ptr<WebSocketSession> session;
     NetworkTransportCallback* callback = nullptr;
@@ -247,14 +305,21 @@ public:
     std::string target_host;
     std::string target_port;
 
-    Impl(const std::string& host, const std::string& port)
-    : ioc()
-    , work(new work_guard_type(boost::asio::make_work_guard(ioc)))
-    , ssl_ctx(boost::asio::ssl::context::tlsv12)
+    Impl(std::shared_ptr<BoostNetworkContext> ctx, const std::string& host, const std::string& port)
+    : shared_ctx(ctx)
+    , local_ssl_ctx(boost::asio::ssl::context::tlsv12)
+    , ioc(shared_ctx ? shared_ctx->ioc : local_ioc)
+    , ssl_ctx(shared_ctx ? shared_ctx->ssl_ctx : local_ssl_ctx)
     , resolver(ioc)
     , target_host(host)
     , target_port(port)
-    {}
+    {
+        if (!shared_ctx) {
+            local_work = std::unique_ptr<work_guard_type>(
+                new work_guard_type(boost::asio::make_work_guard(local_ioc))
+            );
+        }
+    }
 
     void handle_bootstrap_error(const std::string& phase, boost::beast::error_code ec) {
         std::cerr << "[BoostClientDriver] Ошибка: " << phase << " -> " << ec.message() << "\n";
@@ -263,14 +328,20 @@ public:
 
 BoostClientDriver::BoostClientDriver(
     const std::string& host,
-    const std::string& port
-) : impl_(std::unique_ptr<Impl>(new Impl(host, port))) {}
+    const std::string& port,
+    std::shared_ptr<INetworkContext> shared_context
+) {
+    auto boost_ctx = std::static_pointer_cast<BoostNetworkContext>(shared_context);
+    impl_ = std::unique_ptr<Impl>(new Impl(boost_ctx, host, port));
+}
 
 BoostClientDriver::~BoostClientDriver() { stop(); }
 
 void BoostClientDriver::configure(NetworkTransportCallback* callback) {
     impl_->callback = callback;
-    impl_->ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
+    if (!impl_->shared_ctx) {
+        impl_->ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
+    }
 }
 
 void BoostClientDriver::connect() {
@@ -289,7 +360,7 @@ void BoostClientDriver::connect() {
                 impl_->session.reset();
                 return impl_->handle_bootstrap_error("Connect", ec);
             }
-            
+
             // Запускаем инкапсулированную цепочку SSL -> WS внутри сессии
             self_session->start_client(host);
         }));
@@ -297,21 +368,27 @@ void BoostClientDriver::connect() {
 }
 
 void BoostClientDriver::start() {
+    if (impl_->shared_ctx) {
+        return;
+    }
     impl_->client_thread = std::thread([this]() {
         impl_->ioc.run();
     });
 }
 
 void BoostClientDriver::stop() {
-    impl_->work.reset();
     if (impl_->session) {
         try {
-            // Вызываем без аргументов (expected 0)
             boost::beast::get_lowest_layer(impl_->session->stream()).close();
-        } catch (...) {
-            // Подавляем исключения при закрытии
-        }
+        } catch (...) {}
     }
+
+    if (impl_->shared_ctx) {
+        impl_->session.reset();
+        return; 
+    }
+
+    impl_->local_work.reset();
     if (impl_->client_thread.joinable()) {
         impl_->client_thread.join();
     }

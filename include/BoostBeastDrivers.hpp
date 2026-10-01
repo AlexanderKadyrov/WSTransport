@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+class INetworkContext;
+
 class BoostServerDriver : public IServerDriver {
     class Impl;
     std::unique_ptr<Impl> impl_;
@@ -15,7 +17,7 @@ public:
         unsigned short port,
         const std::string& cert_file,
         const std::string& key_file,
-        int thread_count = 1
+        std::shared_ptr<INetworkContext> shared_context = std::shared_ptr<INetworkContext>()
     );
     ~BoostServerDriver() override;
 
@@ -30,7 +32,8 @@ class BoostClientDriver : public IClientDriver {
 public:
     BoostClientDriver(
         const std::string& host,
-        const std::string& port
+        const std::string& port,
+        std::shared_ptr<INetworkContext> shared_context = std::shared_ptr<INetworkContext>()
     );
     ~BoostClientDriver() override;
 
@@ -40,5 +43,7 @@ public:
     void stop() override;
     void send(const std::vector<NetworkByte>& data) override;
 };
+
+std::shared_ptr<INetworkContext> create_network_context(int thread_count = 4);
 
 #endif // BOOST_BEAST_DRIVERS_HPP
