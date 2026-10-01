@@ -51,8 +51,7 @@ public:
     }
 
     void stop() override {
-        work.reset(); 
-        ioc.stop();   
+        work.reset();
         for (auto& th : thread_pool) {
             if (th.joinable()) th.join();
         }
