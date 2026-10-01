@@ -17,7 +17,7 @@ public:
         unsigned short port,
         const std::string& cert_file,
         const std::string& key_file,
-        std::shared_ptr<INetworkContext> shared_context = std::shared_ptr<INetworkContext>()
+        std::shared_ptr<INetworkContext> shared_context
     );
     ~BoostServerDriver() override;
 
@@ -33,7 +33,7 @@ public:
     BoostClientDriver(
         const std::string& host,
         const std::string& port,
-        std::shared_ptr<INetworkContext> shared_context = std::shared_ptr<INetworkContext>()
+        std::shared_ptr<INetworkContext> shared_context
     );
     ~BoostClientDriver() override;
 
@@ -44,6 +44,6 @@ public:
     void send(const std::vector<NetworkByte>& data) override;
 };
 
-std::shared_ptr<INetworkContext> create_network_context(int thread_count = 4);
+std::shared_ptr<INetworkContext> create_network_context(int thread_count);
 
 #endif // BOOST_BEAST_DRIVERS_HPP
